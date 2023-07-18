@@ -122,16 +122,13 @@ def initiate_multipart(context, data_dict):
                 resource_id=id):
             _delete_multipart(old_upload, uploader)
 
-        _rindex = res_name.rfind('/')
-        if ~_rindex:
-            try:
-                name_prefix = res_name[:_rindex]
-                for cloud_object in uploader.container.iterate_objects():
-                    if cloud_object.name.startswith(name_prefix):
-                        log.info('Removing cloud object: %s' % cloud_object)
-                        cloud_object.delete()
-            except Exception as e:
-                log.exception('[delete from cloud] %s' % e)
+        try:
+            for cloud_object in uploader.container.iterate_objects():
+                if cloud_object.name.startswith(res_name):
+                    log.info('Removing cloud object: %s' % cloud_object)
+                    cloud_object.delete()
+        except Exception as e:
+            log.exception('[delete from cloud] %s' % e)
 
         upload_object = MultipartUpload(
             uploader.driver._initiate_multipart(

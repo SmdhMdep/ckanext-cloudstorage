@@ -3,7 +3,6 @@
 import cgi
 import mimetypes
 import os.path
-from six.moves.urllib.parse import urlparse
 from urllib.parse import urljoin
 from ast import literal_eval
 from datetime import datetime, timedelta
@@ -81,7 +80,6 @@ class CloudStorage(object):
         session = boto3.Session()
         credentials = session.get_credentials()
         current_credentials = credentials.get_frozen_credentials()
-
         self.driver_options = {'key': current_credentials.access_key,
                                'secret': current_credentials.secret_key,
                                'token': current_credentials.token,
@@ -280,21 +278,16 @@ class ResourceCloudStorage(CloudStorage):
         :param rid: The resource ID.
         :param filename: The unmunged resource filename.
         """
-
-        #TODO: make filename human readable and add org to start not resources
-
-        data_dict = {"id": rid}
         context = {'model': model, 'user': c.user, 'auth_user_obj': c.userobj}
-        re_dict = toolkit.get_action("resource_show")(context, data_dict)
 
-        data_dict = {"id": re_dict["package_id"]}
-        pkg_dict = toolkit.get_action("package_show")(context, data_dict)
+        resource_dict = toolkit.get_action("resource_show")(context, {"id": rid})
+        pid = resource_dict["package_id"]
+        pkg_dict = toolkit.get_action("package_show")(context, {"id": pid})
 
         return os.path.join(
             pkg_dict["organization"]["name"],
-            pkg_dict["title"],
-            str(rid),
-            munge.munge_filename(filename)
+            pkg_dict["name"],
+            f"{rid}-{munge.munge_filename(filename)}",
         )
 
     def get_path(self, resource_id):
