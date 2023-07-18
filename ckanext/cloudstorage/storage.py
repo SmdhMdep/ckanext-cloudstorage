@@ -4,12 +4,14 @@ import cgi
 import mimetypes
 import os.path
 from six.moves.urllib.parse import urlparse
+from urllib.parse import urljoin
 from ast import literal_eval
 from datetime import datetime, timedelta
 from time import time
 from tempfile import SpooledTemporaryFile
 
 from ckan.plugins.toolkit import config
+from ckan.plugins import toolkit
 from ckan import model
 from ckan.lib import munge
 from ckan.plugins.toolkit import get_action
@@ -17,6 +19,8 @@ import ckan.plugins as p
 
 from libcloud.storage.types import Provider, ObjectDoesNotExistError
 from libcloud.storage.providers import get_driver
+
+c = toolkit.c
 
 
 from werkzeug.datastructures import FileStorage as FlaskFileStorage
@@ -77,6 +81,7 @@ class CloudStorage(object):
         session = boto3.Session()
         credentials = session.get_credentials()
         current_credentials = credentials.get_frozen_credentials()
+
         self.driver_options = {'key': current_credentials.access_key,
                                'secret': current_credentials.secret_key,
                                'token': current_credentials.token,
@@ -275,9 +280,20 @@ class ResourceCloudStorage(CloudStorage):
         :param rid: The resource ID.
         :param filename: The unmunged resource filename.
         """
+
+        #TODO: make filename human readable and add org to start not resources
+
+        data_dict = {"id": rid}
+        context = {'model': model, 'user': c.user, 'auth_user_obj': c.userobj}
+        re_dict = toolkit.get_action("resource_show")(context, data_dict)
+
+        data_dict = {"id": re_dict["package_id"]}
+        pkg_dict = toolkit.get_action("package_show")(context, data_dict)
+
         return os.path.join(
-            'resources',
-            rid,
+            pkg_dict["organization"]["name"],
+            pkg_dict["title"],
+            str(rid),
             munge.munge_filename(filename)
         )
 
@@ -400,6 +416,7 @@ class ResourceCloudStorage(CloudStorage):
                 )
             )
         elif self.can_use_advanced_aws and self.use_secure_urls:
+            self.authenticate_with_aws_boto3()
 
             from boto.s3.connection import S3Connection
             os.environ['S3_USE_SIGV4'] = 'True'
@@ -429,7 +446,7 @@ class ResourceCloudStorage(CloudStorage):
             return self.driver.get_object_cdn_url(obj)
         except NotImplementedError:
             if 'S3' in self.driver_name:
-                return urlparse.urljoin(
+                return urljoin(
                     'https://' + self.driver.connection.host,
                     '{container}/{path}'.format(
                         container=self.container_name,
