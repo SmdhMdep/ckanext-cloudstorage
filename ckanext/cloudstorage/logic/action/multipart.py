@@ -111,37 +111,25 @@ def initiate_multipart(context, data_dict):
     uploader = ResourceCloudStorage({'multipart_name': name})
     res_name = uploader.path_from_filename(id, name)
 
-    upload_object = MultipartUpload.by_name(res_name)
+    old_upload = MultipartUpload.by_name(res_name)
+    if old_upload is not None:
+        _delete_multipart(old_upload, uploader)
 
-    if upload_object is not None:
-        _delete_multipart(upload_object, uploader)
-        upload_object = None
+    for old_upload in model.Session.query(MultipartUpload).filter_by(resource_id=id):
+        _delete_multipart(old_upload, uploader)
 
-    if upload_object is None:
-        for old_upload in model.Session.query(MultipartUpload).filter_by(
-                resource_id=id):
-            _delete_multipart(old_upload, uploader)
-
-        try:
-            for cloud_object in uploader.container.iterate_objects():
-                if cloud_object.name.startswith(res_name):
-                    log.info('Removing cloud object: %s' % cloud_object)
-                    cloud_object.delete()
-        except Exception as e:
-            log.exception('[delete from cloud] %s' % e)
-
-        upload_object = MultipartUpload(
-            uploader.driver._initiate_multipart(
-                container=uploader.container,
-                object_name=res_name
-            ),
-            id,
-            res_name,
-            size,
-            name,
-            user_id
-        )
-        upload_object.save()
+    upload_object = MultipartUpload(
+        uploader.driver._initiate_multipart(
+            container=uploader.container,
+            object_name=res_name
+        ),
+        id,
+        res_name,
+        size,
+        name,
+        user_id
+    )
+    upload_object.save()
     return upload_object.as_dict()
 
 
