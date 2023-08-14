@@ -1,17 +1,42 @@
 from ast import literal_eval
+import time
 import logging
 from typing import Optional
 
 import ckan.model as model
 from ckan.plugins import toolkit
 
+from ..distributed_lock import distributed_lock
 from .s3_event_message import S3EventMessage, receive_s3_events, fake_receive_s3_events
 
 
 logger = logging.getLogger(__name__)
 
 
-def sync_s3():
+def schedule_s3_sync_job_from_worker():
+    enabled = toolkit.config.get("ckanext.cloudstorage.is_worker", False)
+    if not enabled:
+        return
+    delay = toolkit.asint(toolkit.config.get("ckanext.cloudstorage.sync.schedule_delay", '2'))
+    _schedule_s3_sync_job(delay)
+
+def _schedule_s3_sync_job(delay: int):
+    with distributed_lock('s3-sync-job'):
+        list_jobs = toolkit.get_action("job_list")
+        jobs = list_jobs({"ignore_auth": True, "model": model}, {})
+
+        if not jobs:
+            logger.info("enqueuing s3_sync_job")
+            toolkit.enqueue_job(_sync_s3_job, (delay,))
+
+def _sync_s3_job(delay: int):
+    try:
+        _sync_s3()
+    finally:
+        time.sleep(delay)
+        _schedule_s3_sync_job(delay)
+
+def _sync_s3():
     context = {"model": model, "session": model.Session, "ignore_auth": True, "defer_commit": True, "user": None}
 
     for event in _events():
