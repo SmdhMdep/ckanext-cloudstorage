@@ -13,7 +13,6 @@ from ckan.plugins import toolkit
 from ckan.lib.uploader import ResourceUpload as DefaultResourceUpload
 from ckan import model
 from ckan.lib import munge
-from ckan.plugins.toolkit import get_action
 import ckan.plugins as p
 
 from libcloud.storage.types import Provider, ObjectDoesNotExistError
@@ -164,7 +163,7 @@ class CloudStorage(object):
         boto for AWS IAM sessions. This makes session creation possible on
         platforms like AWS ECS Fargate or AWS Lambda.
         """
-        return bool(int(config.get('ckanext.cloudstorage.aws_use_boto3_sessions', 0)))
+        return bool(int(config.get('ckanext.cloudstorage.aws_use_boto3_sessions', 1)))
 
     @property
     def leave_files(self):
@@ -200,16 +199,12 @@ class CloudStorage(object):
     @property
     def can_use_advanced_aws(self):
         """
-        `True` if the `boto` module is installed and ckanext-cloudstorage has
+        `True` if the `boto3` module is installed and ckanext-cloudstorage has
         been configured to use Amazon S3, otherwise `False`.
         """
-        # Are we even using AWS?
         if 'S3' in self.driver_name:
             try:
-                # Yes? Is the boto package available?
-                import boto
-                # Shut the linter up.
-                assert boto
+                import boto3 as _
                 return True
             except ImportError:
                 pass
