@@ -11,6 +11,7 @@ if plugins.toolkit.check_ckan_version(min_version='2.9.0'):
 else:
     from ckanext.cloudstorage.plugin.pylons_plugin import MixinPlugin
 
+from ..resource_object_key import ResourceObjectKey
 from ..validators import valid_resource_name
 
 
@@ -89,6 +90,17 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
         }
 
     # IResourceController
+
+    def before_create(self, context, resource):
+        field_name = storage.ResourceCloudStorage.STORAGE_PATH_FIELD_NAME
+        if resource.get('url_type') == 'upload' and field_name not in resource:
+            context = dict(context, ignore_auth=True)
+            package = plugins.toolkit.get_action('package_show')(context, {
+                'id': resource['package_id']
+            })
+            resource[field_name] = (
+                ResourceObjectKey.from_resource(package, resource).raw
+            )
 
     def before_delete(self, context, id_dict, resources):
         # let's get all info about our resource. It somewhere in resources

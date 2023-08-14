@@ -109,7 +109,7 @@ def initiate_multipart(context, data_dict):
     toolkit.get_action('resource_patch')(context.copy(), res_dict)
 
     uploader = ResourceCloudStorage({'multipart_name': name})
-    res_name = uploader.path_from_filename(id, name)
+    res_name = uploader.get_path(id)
 
     old_upload = MultipartUpload.by_name(res_name)
     if old_upload is not None:

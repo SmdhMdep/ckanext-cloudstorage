@@ -4,6 +4,7 @@ import os.path
 
 import six
 from ckan import logic, model
+from ckan.common import flask
 import ckan.plugins.toolkit as tk
 from ckan.lib import base, uploader
 import ckan.lib.helpers as h
@@ -160,10 +161,20 @@ def resource_download(id, resource_id, filename=None):
     uploaded_url = upload.get_url_from_filename(resource['id'],
                                                 filename,
                                                 content_type=content_type)
-
     # The uploaded file is missing for some reason, such as the
     # provider being down.
     if uploaded_url is None:
         return base.abort(404, tk._('No download is available'))
 
-    return h.redirect_to(uploaded_url)
+    if uploaded_url.startswith('file://'):
+        filepath = uploaded_url[len('file://'):]
+        try:
+            resp = flask.send_file(filepath)
+        except FileNotFoundError:
+            return base.abort(404, tk._('Resource data not found'))
+        content_type = content_type or resource.get('mimetype')
+        if content_type:
+            resp.headers['Content-Type'] = content_type
+        return resp
+    else:
+        return h.redirect_to(uploaded_url)

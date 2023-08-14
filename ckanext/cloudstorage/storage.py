@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import cgi
 import mimetypes
-import os.path
 from urllib.parse import urljoin
 from ast import literal_eval
 from datetime import datetime, timedelta
@@ -11,6 +10,7 @@ from tempfile import SpooledTemporaryFile
 
 from ckan.plugins.toolkit import config
 from ckan.plugins import toolkit
+from ckan.lib.uploader import ResourceUpload as DefaultResourceUpload
 from ckan import model
 from ckan.lib import munge
 from ckan.plugins.toolkit import get_action
@@ -48,9 +48,6 @@ class CloudStorage(object):
             )
         )(**self.driver_options)
         self._container = None
-
-    def path_from_filename(self, rid, filename):
-        raise NotImplementedError
 
     def authenticate_with_aws(self):
         import requests
@@ -228,6 +225,8 @@ class CloudStorage(object):
 
 
 class ResourceCloudStorage(CloudStorage):
+    STORAGE_PATH_FIELD_NAME = "cloud_storage_key"
+
     def __init__(self, resource):
         """
         Support for uploading resources to any storage provider
@@ -235,6 +234,10 @@ class ResourceCloudStorage(CloudStorage):
 
         :param resource: The resource dict.
         """
+        # NOTE: The resource parameter can be either:
+        # 1. an actual resource dict (when instantiated by the ckan framework)
+        # 2. a dict with one key, `multipart_name`. Used to call `get_path`.
+        # 3. an empty dict. Used to get access to the underlying driver instance.
         super(ResourceCloudStorage, self).__init__()
 
         self.filename = None
@@ -271,30 +274,21 @@ class ResourceCloudStorage(CloudStorage):
             self.old_filename = old_resource.url
             resource['url_type'] = ''
 
-    def path_from_filename(self, rid, filename):
-        """
-        Returns a bucket path for the given resource_id and filename.
-
-        :param rid: The resource ID.
-        :param filename: The unmunged resource filename.
-        """
-        context = {'model': model, 'user': c.user, 'auth_user_obj': c.userobj}
-
-        resource_dict = toolkit.get_action("resource_show")(context, {"id": rid})
-        pid = resource_dict["package_id"]
-        pkg_dict = toolkit.get_action("package_show")(context, {"id": pid})
-
-        return os.path.join(
-            pkg_dict["organization"]["name"],
-            pkg_dict["name"],
-            f"{rid}-{munge.munge_filename(filename)}",
-        )
+    @property
+    def _fallback_uploader(self):
+        if getattr(self, '_fallback_uploader_instance', None) is None:
+            self._fallback_uploader_instance = DefaultResourceUpload(self.resource)
+        return self._fallback_uploader_instance
 
     def get_path(self, resource_id):
-        resource = get_action('resource_show')({}, {'id': resource_id})
-        filename = resource['url'].rsplit('/', 1)[-1]
+        path = self._get_cloud_storage_path(resource_id)
+        return path or self._fallback_uploader.get_path(resource_id)
 
-        return self.get_url_from_filename(resource_id, filename)
+    def _get_cloud_storage_path(self, resource_id):
+        return toolkit.get_action('resource_show')(
+            {'model': model, 'ignore_auth': True},
+            {'id': resource_id},
+        ).get(self.STORAGE_PATH_FIELD_NAME)
 
     def upload(self, id, max_size=10):
         """
@@ -303,8 +297,11 @@ class ResourceCloudStorage(CloudStorage):
         :param id: The resource_id.
         :param max_size: Ignored.
         """
-        if self.filename:
+        storage_path = self._get_cloud_storage_path(id)
+        if storage_path is None:
+            return self._fallback_uploader.upload(id, max_size)
 
+        if self.filename:
             if self.can_use_advanced_azure:
                 from azure.storage import blob as azure_blob
                 from azure.storage.blob.models import ContentSettings
@@ -323,10 +320,7 @@ class ResourceCloudStorage(CloudStorage):
 
                 return blob_service.create_blob_from_stream(
                     container_name=self.container_name,
-                    blob_name=self.path_from_filename(
-                        id,
-                        self.filename
-                    ),
+                    blob_name=storage_path,
                     stream=self.file_upload,
                     content_settings=content_settings
                 )
@@ -347,27 +341,23 @@ class ResourceCloudStorage(CloudStorage):
                 else:
                     file_upload_iter = iter(self.file_upload)
 
-                object_name = self.path_from_filename(id, self.filename)
                 self.container.upload_object_via_stream(iterator=file_upload_iter,
-                                                        object_name=object_name)
+                                                        object_name=storage_path)
 
         elif self._clear and self.old_filename and not self.leave_files:
             # This is only set when a previously-uploaded file is replace
             # by a link. We want to delete the previously-uploaded file.
             try:
-                self.container.delete_object(
-                    self.container.get_object(
-                        self.path_from_filename(
-                            id,
-                            self.old_filename
-                        )
-                    )
-                )
+                cloud_object = self.container.get_object(storage_path)
+                self.container.delete_object(cloud_object)
             except ObjectDoesNotExistError:
                 # It's possible for the object to have already been deleted, or
                 # for it to not yet exist in a committed state due to an
                 # outstanding lease.
-                return
+                try:
+                    self._fallback_uploader.upload(id, max_size)
+                except:
+                    return
 
     def get_url_from_filename(self, rid, filename, content_type=None):
         """
@@ -386,7 +376,9 @@ class ResourceCloudStorage(CloudStorage):
         :returns: Externally accessible URL or None.
         """
         # Find the key the file *should* be stored at.
-        path = self.path_from_filename(rid, filename)
+        path = self._get_cloud_storage_path(rid)
+        if path is None:
+            return f'file://{self._fallback_uploader.get_path(rid)}'
 
         # If advanced azure features are enabled, generate a temporary
         # shared access link instead of simply redirecting to the file.
