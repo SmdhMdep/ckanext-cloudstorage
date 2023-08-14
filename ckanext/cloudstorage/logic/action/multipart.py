@@ -237,9 +237,7 @@ def finish_multipart(context, data_dict):
     # Submit to datapusher, uses custom config variable which is not triggered automatically in ckan
     if plugin_loaded('datapusher'):
         resource_format = res_dict.get('format')
-        supported_formats = toolkit.config.get(
-            'ckanext.cloudstorage.datapusher.formats'
-        )
+        supported_formats = toolkit.config.get('ckanext.cloudstorage.datapusher.formats', '').split()
 
         submit = (
             resource_format

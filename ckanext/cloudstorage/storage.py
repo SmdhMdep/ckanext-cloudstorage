@@ -74,7 +74,10 @@ class CloudStorage(object):
         https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use.html#id_roles_use_view-role-max-session
         """
         import boto3
-        session = boto3.Session()
+        session = boto3.Session(
+            aws_access_key_id=self.driver_options.get('key'),
+            aws_secret_access_key=self.driver_options.get('secret'),
+        )
         credentials = session.get_credentials()
         current_credentials = credentials.get_frozen_credentials()
         self.driver_options = {'key': current_credentials.access_key,
@@ -151,7 +154,7 @@ class CloudStorage(object):
         one-time URLs to resources, `False` otherwise.
         """
         return p.toolkit.asbool(
-            config.get('ckanext.cloudstorage.use_secure_urls', False)
+            config.get('ckanext.cloudstorage.use_secure_urls', True)
         )
 
     @property
@@ -401,30 +404,25 @@ class ResourceCloudStorage(CloudStorage):
                 )
             )
         elif self.can_use_advanced_aws and self.use_secure_urls:
-            self.authenticate_with_aws_boto3()
+            import boto3
 
-            from boto.s3.connection import S3Connection
-            os.environ['S3_USE_SIGV4'] = 'True'
-            s3_connection = S3Connection(
+            client = boto3.client(
+                's3',
                 aws_access_key_id=self.driver_options['key'],
                 aws_secret_access_key=self.driver_options['secret'],
-                security_token=self.driver_options['token'],
-                host='s3.eu-west-1.amazonaws.com'
             )
-
-            generate_url_params = {"expires_in": 60 * 60,
-                                   "method": "GET",
-                                   "bucket": self.container_name,
-                                   "key": path}
+            params = {'Bucket': self.container_name, 'Key': path}
             if content_type:
-                generate_url_params['headers'] = {"Content-Type": content_type}
+                params['ResponseContentType'] = content_type
 
-            return s3_connection.generate_url_sigv4(**generate_url_params)
+            presigned_url = client.generate_presigned_url(ClientMethod='get_object', Params=params)
+            return presigned_url
 
         # Find the object for the given key.
-        obj = self.container.get_object(path)
-        if obj is None:
-            return
+        try:
+            obj = self.container.get_object(path)
+        except ObjectDoesNotExistError:
+            return None
 
         # Not supported by all providers!
         try:
