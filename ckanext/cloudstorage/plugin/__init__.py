@@ -11,8 +11,10 @@ if plugins.toolkit.check_ckan_version(min_version='2.9.0'):
 else:
     from ckanext.cloudstorage.plugin.pylons_plugin import MixinPlugin
 
+from ..validators import valid_resource_name
 
-class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin):
+
+class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.DefaultDatasetForm):
     plugins.implements(plugins.IUploader)
     plugins.implements(plugins.IRoutes, inherit=True)
     plugins.implements(plugins.IConfigurable)
@@ -21,6 +23,8 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin):
     plugins.implements(plugins.ITemplateHelpers)
     plugins.implements(plugins.IAuthFunctions)
     plugins.implements(plugins.IResourceController, inherit=True)
+    plugins.implements(plugins.IValidators)
+    plugins.implements(plugins.IDatasetForm)
 
     # IConfigurer
 
@@ -94,3 +98,29 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin):
             resource = dict(resource, clear_upload=True)
             uploader = self.get_resource_uploader(resource)
             uploader.upload(resource['id'])
+
+    # IValidators
+
+    def get_validators(self):
+        return {
+            valid_resource_name.__name__: valid_resource_name
+        }
+
+    # IDatasetForm
+
+    def package_types(self):
+        return []
+
+    def is_fallback(self):
+        return True
+
+    def _write_package_schema(self, schema):
+        validator = plugins.toolkit.get_validator(valid_resource_name.__name__)
+        schema['resources']['name'].append(validator)
+        return schema
+
+    def create_package_schema(self):
+        return self._write_package_schema(super().create_package_schema())
+
+    def update_package_schema(self):
+        return self._write_package_schema(super().update_package_schema())
