@@ -135,3 +135,16 @@ def receive_s3_events(bucket_name: str, queue_region: str, queue_url: str, drive
         for message in messages_batch:
             logger.debug("received message from sqs: %s", message)
             yield from S3EventMessage._from_sqs_message(bucket_name, message)
+
+
+# Fakes
+
+def fake_receive_s3_events():
+    class FakeSQSMessage:
+        def __init__(self, *, delete=lambda: None, body={'Records': []}):
+            self.body = body
+            self.delete = delete
+
+    from .fake_s3_event_messages import FAKE_MESSAGES
+
+    yield from S3EventMessage._from_sqs_message('fake_bucket', FakeSQSMessage(body=FAKE_MESSAGES))
