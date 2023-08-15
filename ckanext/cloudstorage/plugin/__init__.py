@@ -12,6 +12,7 @@ else:
     from ckanext.cloudstorage.plugin.pylons_plugin import MixinPlugin
 
 from ..resource_object_key import ResourceObjectKey
+from .. import model
 from ..validators import valid_resource_name
 
 
@@ -41,7 +42,6 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
         )
 
     def configure(self, config):
-
         required_keys = (
             'ckanext.cloudstorage.driver',
             'ckanext.cloudstorage.driver_options',
@@ -55,6 +55,8 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
                         rk
                     )
                 )
+
+        model.create_tables()
 
     def get_resource_uploader(self, data_dict):
         # We provide a custom Resource uploader.
