@@ -79,10 +79,13 @@ class CloudStorage(object):
         )
         credentials = session.get_credentials()
         current_credentials = credentials.get_frozen_credentials()
-        self.driver_options = {'key': current_credentials.access_key,
-                               'secret': current_credentials.secret_key,
-                               'token': current_credentials.token,
-                               'expires': datetime.fromtimestamp(time() + 900).strftime('%Y-%m-%dT%H:%M:%SZ')}
+        self.driver_options = {
+            **self.driver_options,
+            'key': current_credentials.access_key,
+            'secret': current_credentials.secret_key,
+            'token': current_credentials.token,
+            'expires': datetime.fromtimestamp(time() + 900).strftime('%Y-%m-%dT%H:%M:%SZ')
+        }
 
         self.driver = get_driver(
             getattr(
