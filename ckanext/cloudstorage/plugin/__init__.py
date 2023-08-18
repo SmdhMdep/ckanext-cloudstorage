@@ -12,6 +12,7 @@ else:
     from ckanext.cloudstorage.plugin.pylons_plugin import MixinPlugin
 
 from ..resource_object_key import ResourceObjectKey
+from ..storage import STORAGE_PATH_FIELD_NAME
 from .. import model
 from ..validators import valid_resource_name
 
@@ -94,15 +95,19 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
     # IResourceController
 
     def before_create(self, context, resource):
-        field_name = storage.ResourceCloudStorage.STORAGE_PATH_FIELD_NAME
-        if resource.get('url_type') == 'upload' and field_name not in resource:
+        if resource.get('url_type') == 'upload' and resource.get(STORAGE_PATH_FIELD_NAME) is None:
             context = dict(context, ignore_auth=True)
             package = plugins.toolkit.get_action('package_show')(context, {
                 'id': resource['package_id']
             })
-            resource[field_name] = (
+            resource[STORAGE_PATH_FIELD_NAME] = (
                 ResourceObjectKey.from_resource(package, resource).raw
             )
+
+    def before_update(self, context, current, resource):
+        path = current.get(STORAGE_PATH_FIELD_NAME)
+        if path is not None:
+            resource[STORAGE_PATH_FIELD_NAME] = path
 
     def before_delete(self, context, id_dict, resources):
         # let's get all info about our resource. It somewhere in resources

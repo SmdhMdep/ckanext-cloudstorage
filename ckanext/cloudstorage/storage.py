@@ -224,9 +224,9 @@ class CloudStorage(object):
             config.get('ckanext.cloudstorage.guess_mimetype', False)
         )
 
+STORAGE_PATH_FIELD_NAME = "cloud_storage_key"
 
 class ResourceCloudStorage(CloudStorage):
-    STORAGE_PATH_FIELD_NAME = "cloud_storage_key"
 
     def __init__(self, resource):
         """
@@ -289,7 +289,7 @@ class ResourceCloudStorage(CloudStorage):
         return toolkit.get_action('resource_show')(
             {'model': model, 'ignore_auth': True},
             {'id': resource_id},
-        ).get(self.STORAGE_PATH_FIELD_NAME)
+        ).get(STORAGE_PATH_FIELD_NAME)
 
     def upload(self, id, max_size=10):
         """
