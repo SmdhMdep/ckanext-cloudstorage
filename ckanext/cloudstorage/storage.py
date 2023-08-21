@@ -33,8 +33,8 @@ def _get_underlying_file(wrapper):
 
 class CloudStorage(object):
     def __init__(self):
-        self._driver_options = literal_eval(config['ckanext.cloudstorage.driver_options'])
-        if 'S3' in self.driver_name and not self.driver_options:
+        self._driver_options = literal_eval(config.get('ckanext.cloudstorage.driver_options', '{}'))
+        if 'S3' in self.driver_name and 'key' not in self.driver_options:
             if self.aws_use_boto3_sessions:
                 self.authenticate_with_aws_boto3()
             else:
