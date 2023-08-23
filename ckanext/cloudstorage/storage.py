@@ -404,10 +404,12 @@ class ResourceCloudStorage(CloudStorage):
         elif self.can_use_advanced_aws and self.use_secure_urls:
             import boto3
 
+            self.authenticate_with_aws_boto3()
             client = boto3.client(
                 's3',
                 aws_access_key_id=self.driver_options['key'],
                 aws_secret_access_key=self.driver_options['secret'],
+                region_name=self.driver_options['region'],
             )
             params = {'Bucket': self.container_name, 'Key': path}
             if content_type:
