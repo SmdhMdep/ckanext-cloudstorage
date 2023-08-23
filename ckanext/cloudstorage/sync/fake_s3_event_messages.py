@@ -4,6 +4,17 @@ import json
 PACKAGE_NAME = "sync-test-create-1"
 
 
+def _test_event() -> dict:
+    return {
+        "Service": "Amazon S3",
+        "Event": "s3:TestEvent",
+        "Time": "2014-10-13T15:57:02.089Z",
+        "Bucket": "fake_bucket",
+        "RequestId": "5582815E1AEA5ADF",
+        "HostId": "8cLeGAmw098X5cv4Zkwcmo8vvZa3eH3eKxsPzbB9wrR+YstdA6Knx4Ip8EXAMPLE"
+    }
+
+
 def _event(name: str, object: dict) -> dict:
     return {
         "eventVersion": "2.1",
@@ -48,6 +59,13 @@ def _upload_deleted_event(name: str, sequence: int) -> dict:
         "sequencer": hex(sequence)[2:],
     })
 
+def _stream_initial_event(name: str, sequence: int) -> dict:
+    return _event("ObjectCreated:Put", {
+        "key": f"1/test-organization/{PACKAGE_NAME}/{name}/",
+        "size": 50,
+        "sequencer": hex(sequence)[2:],
+    })
+
 def _stream_created_event(name: str, date: str, sequence: int) -> dict:
     # date is of the format yyyy-mm-dd-hh-mm-ss
     return _event("ObjectCreated:Put", {
@@ -66,9 +84,11 @@ def _stream_deleted_event(name: str, date: str, sequence: int) -> dict:
 
 FAKE_MESSAGES = json.dumps({
     "Records": [
+        _test_event(),
         _upload_created_event('study-data-from-event', 10),
         _upload_deleted_event('upload', 11),
-        _stream_created_event('stream', '2023-07-24-09-07-42', 1),
-        _stream_created_event('stream', '2023-09-29-09-07-42', 2),
+        _stream_initial_event('stream', 1),
+        _stream_created_event('stream', '2023-07-24-09-07-42', 2),
+        _stream_created_event('stream', '2023-09-29-09-07-42', 3),
     ]
 })

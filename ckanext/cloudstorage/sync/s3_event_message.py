@@ -36,8 +36,12 @@ class S3EventMessage:
 
     @classmethod
     def _from_sqs_message(cls, bucket_name: str, message: SQSMessage):
-        msg = json.loads(message.body)
-        for record in msg['Records']:
+        body = json.loads(message.body)
+        if body.get("Event") == "s3:TestEvent":
+            logger.debug("test event message")
+            return None
+
+        for record in body["Records"]:
             try:
                 version_major, version_minor = map(int, record["eventVersion"].split("."))
                 if version_major > cls.SUPPORTED_VERSION_MAJOR or version_minor < cls.SUPPORTED_VERSION_MINOR:
@@ -46,12 +50,14 @@ class S3EventMessage:
 
                 event_source, event_name = record["eventSource"], record["eventName"]
                 event_bucket_name = record["s3"]["bucket"]["name"]
+                event_object_key = record["s3"]["object"]["key"]
                 if (
                     event_source == "aws:s3"
                     and event_name.startswith(cls.EVENT_NAMES)
                     and event_bucket_name == bucket_name
                 ):
-                    yield S3EventMessage(message, record)
+                    logger.debug("sync event message for key %s", event_object_key)
+                    yield None if event_object_key.endswith('/') else S3EventMessage(message, record)
             except (KeyError, TypeError):
                 logger.exception("unexpected schema")
 
@@ -133,8 +139,12 @@ def _poll_queue(queue_region: str, queue_url: str, driver_options) -> Iterator[S
 def receive_s3_events(bucket_name: str, queue_region: str, queue_url: str, driver_options: dict) -> Iterator[S3EventMessage]:
     for messages_batch in _poll_queue(queue_region, queue_url, driver_options):
         for message in messages_batch:
-            logger.debug("received message from sqs: %s", message)
-            yield from S3EventMessage._from_sqs_message(bucket_name, message)
+            logger.info("received message from sqs: %s", message)
+            for event in S3EventMessage._from_sqs_message(bucket_name, message):
+                if event is None:
+                    message.delete()
+                else:
+                    yield event
 
 
 # Fakes
