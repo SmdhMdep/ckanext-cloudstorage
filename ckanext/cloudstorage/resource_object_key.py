@@ -95,7 +95,7 @@ class _ResourceObjectKeyV0(ResourceObjectKey):
 
     @classmethod
     def try_parse(cls, key):
-        return _parse_from_path_v0_v1(cls, key, key, cls.version)
+        return _parse_from_path_v0_v1(cls, key, key)
 
     @classmethod
     def try_create(cls, package, resource):
@@ -128,7 +128,7 @@ class _ResourceObjectKeyV1(ResourceObjectKey):
     def try_parse(cls, key):
         version, _, path = key.partition('/')
         if int(version) == cls.version:
-            return _parse_from_path_v0_v1(cls, path, key, cls.version)
+            return _parse_from_path_v0_v1(cls, path, key)
         return None
 
     @classmethod
@@ -139,7 +139,7 @@ class _ResourceObjectKeyV1(ResourceObjectKey):
         return cls.try_parse(f'{cls.version}/{org_name}/{pkg_name}/{name}')
 
 
-def _parse_from_path_v0_v1(cls, path: str, raw: str, version: int) -> ResourceObjectKey:
+def _parse_from_path_v0_v1(cls, path: str, key: str) -> ResourceObjectKey:
     try:
         organization_name, package_name, *resource_path = path.split("/")
         if not resource_path:
@@ -147,27 +147,26 @@ def _parse_from_path_v0_v1(cls, path: str, raw: str, version: int) -> ResourceOb
     except ValueError:
         raise ValueError("key does not match the expected schema")
 
+    key_type = ResourceObjectKeyType.STREAMING if len(resource_path) > 1 else ResourceObjectKeyType.UPLOAD
+
     name = resource_path[0]
     filename = (
-        name if type == ResourceObjectKeyType.UPLOAD
+        name if key_type == ResourceObjectKeyType.UPLOAD
         else resource_path[-1]
     )
     ingestion_datetime = (
         _try_parse_streaming_datetime(filename)
-        if type == ResourceObjectKeyType.STREAMING
+        if key_type == ResourceObjectKeyType.STREAMING
         else None
     )
 
     return cls(
-        raw=raw,
+        raw=key,
         version=cls.version,
         organization_name=organization_name,
         package_name=package_name,
-        name=name, 
-        type=(
-            ResourceObjectKeyType.STREAMING if len(resource_path) > 1
-            else ResourceObjectKeyType.UPLOAD
-        ),
+        name=name,
+        type=key_type,
         filename=filename,
         ingestion_datetime=ingestion_datetime,
     )
