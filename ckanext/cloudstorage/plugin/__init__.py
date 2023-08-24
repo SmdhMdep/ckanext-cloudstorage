@@ -105,9 +105,8 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
             )
 
     def before_update(self, context, current, resource):
-        path = current.get(STORAGE_PATH_FIELD_NAME)
-        if path is not None:
-            resource[STORAGE_PATH_FIELD_NAME] = path
+        if STORAGE_PATH_FIELD_NAME not in resource and STORAGE_PATH_FIELD_NAME in current:
+            resource[STORAGE_PATH_FIELD_NAME] = current[STORAGE_PATH_FIELD_NAME]
 
     def before_delete(self, context, id_dict, resources):
         # let's get all info about our resource. It somewhere in resources
