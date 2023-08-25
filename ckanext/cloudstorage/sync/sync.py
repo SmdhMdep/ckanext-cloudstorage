@@ -1,11 +1,10 @@
-from ast import literal_eval
-import time
 import logging
 from typing import Optional
 
 import ckan.model as model
 from ckan.plugins import toolkit
 
+from .config import config
 from ..distributed_lock import distributed_lock
 from .s3_event_message import S3EventMessage, receive_s3_events, fake_receive_s3_events
 
@@ -13,50 +12,19 @@ from .s3_event_message import S3EventMessage, receive_s3_events, fake_receive_s3
 logger = logging.getLogger(__name__)
 
 
-def schedule_s3_sync_job_from_worker():
-    enabled = toolkit.config.get("ckanext.cloudstorage.is_worker", False)
-    if not enabled:
-        return
-    delay = toolkit.asint(toolkit.config.get("ckanext.cloudstorage.sync.schedule_delay", '2'))
-    _schedule_s3_sync_job(delay)
-
-def _schedule_s3_sync_job(delay: int):
+def schedule_s3_sync_job():
     with distributed_lock('s3-sync-job'):
-        list_jobs = toolkit.get_action("job_list")
-        jobs = list_jobs({"ignore_auth": True, "model": model}, {})
+        jobs = toolkit.get_action("job_list")({"ignore_auth": True, "model": model}, {})
+        sync_jobs = [job for job in jobs if job['title'] == sync_s3.__name__]
+        if not sync_jobs:
+            toolkit.enqueue_job(sync_s3, title=sync_s3.__name__)
 
-        if not jobs:
-            logger.info("enqueuing s3_sync_job")
-            toolkit.enqueue_job(_sync_s3_job, (delay,))
-
-def _sync_s3_job(delay: int):
-    try:
-        _sync_s3()
-    finally:
-        time.sleep(delay)
-        _schedule_s3_sync_job(delay)
-
-def _sync_s3():
+def sync_s3():
     context = {"model": model, "session": model.Session, "ignore_auth": True, "defer_commit": True, "user": None}
 
     for event in _events():
         try:
-            organization = _get_organization(context, event.resource_key.organization_name)
-            admin = _get_organization_admin(organization)
-            event_context = dict(context, user=admin.get("id"))
-
-            package_context = dict(event_context, for_update=True)
-            package = _find_package(package_context, event.resource_key.package_name)
-            current_resource = (
-                _get_resource_by_name_or_none(package, event.resource_key.name)
-                if package is not None else None
-            )
-
-            if event.can_apply_to(current_resource):
-                logger.debug("handling key %s for %s event", event.resource_key.raw, event.type)
-                _apply_event(event_context, event, organization, package, current_resource)
-            else:
-                logger.debug("ignoring key %s for %s event", event.resource_key.raw, event.type)
+            _do_sync(context, event)
         except ValueError as e:
             logger.exception("invalid s3 sync event")
             event.mark_invalid(*e.args)
@@ -67,17 +35,29 @@ def _sync_s3():
             event.mark_received()
 
 def _events():
-    bucket_name = toolkit.config["ckanext.cloudstorage.container_name"]
-    driver_options = literal_eval(toolkit.config.get("ckanext.cloudstorage.driver_options", "{}"))
-    queue_region = toolkit.config["ckanext.cloudstorage.sync.queue_region"]
-    queue_url = toolkit.config["ckanext.cloudstorage.sync.queue_url"]
-    fake_events = toolkit.asbool(toolkit.config.get("ckanext.cloudstorage.sync.fake_events", False))
-
     return (
-        receive_s3_events(bucket_name, queue_region, queue_url, driver_options)
-        if not fake_events else
+        receive_s3_events(config.bucket_name, config.queue_region, config.queue_url, config.driver_options)
+        if not config.use_fake_events else
         fake_receive_s3_events()
     )
+
+def _do_sync(context, event: S3EventMessage):
+    organization = _get_organization(context, event.resource_key.organization_name)
+    admin = _get_organization_admin(organization)
+    event_context = dict(context, user=admin.get("id"))
+
+    package_context = dict(event_context, for_update=True)
+    package = _find_package(package_context, event.resource_key.package_name)
+    current_resource = (
+        _get_resource_by_name_or_none(package, event.resource_key.name)
+        if package is not None else None
+    )
+
+    if event.can_apply_to(current_resource):
+        logger.debug("handling key %s for %s event", event.resource_key.raw, event.type)
+        _apply_event(event_context, event, organization, package, current_resource)
+    else:
+        logger.debug("ignoring key %s for %s event", event.resource_key.raw, event.type)
 
 def _get_organization(context, org_name: str) -> dict:
     try:
