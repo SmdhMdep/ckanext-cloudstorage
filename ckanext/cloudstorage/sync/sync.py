@@ -36,7 +36,7 @@ def sync_s3():
 
 def _events():
     return (
-        receive_s3_events(config.bucket_name, config.queue_region, config.queue_url, config.driver_options)
+        receive_s3_events(config.container_name, config.queue_region, config.queue_url, config.driver_options)
         if not config.use_fake_events else
         fake_receive_s3_events()
     )
