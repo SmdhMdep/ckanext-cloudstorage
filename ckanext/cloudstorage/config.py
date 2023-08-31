@@ -21,6 +21,10 @@ class Config:
 
     @property
     def driver_options(self) -> dict:
+        """
+        A dictionary of options ckanext-cloudstorage has been configured to
+        pass to the apache-libcloud driver.
+        """
         return literal_eval(toolkit.config.get('ckanext.cloudstorage.driver_options', '{}'))
 
     @property
@@ -71,37 +75,6 @@ class Config:
     @property
     def use_fake_events(self) -> bool:
         return toolkit.asbool(toolkit.config.get("ckanext.cloudstorage.sync.use_fake_events", False))
-
-    @property
-    def can_use_advanced_azure(self) -> bool:
-        """
-        `True` if the `azure-storage` module is installed and
-        ckanext-cloudstorage has been configured to use Azure, otherwise
-        `False`.
-        """
-        if self.driver_name == 'AZURE_BLOBS':
-            try:
-                from azure import storage as _
-                return True
-            except ImportError:
-                pass
-
-        return False
-
-    @property
-    def can_use_advanced_aws(self) -> bool:
-        """
-        `True` if the `boto3` module is installed and ckanext-cloudstorage has
-        been configured to use Amazon S3, otherwise `False`.
-        """
-        if 'S3' in self.driver_name:
-            try:
-                import boto3 as _
-                return True
-            except ImportError:
-                pass
-
-        return False
 
     @property
     def guess_mimetype(self) -> bool:

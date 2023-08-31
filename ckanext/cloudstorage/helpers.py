@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from ckanext.cloudstorage.storage import ResourceCloudStorage
+from ckanext.cloudstorage.config import config
 
 
 def use_secure_urls():
     return all([
-        ResourceCloudStorage.use_secure_urls.fget(None),
+        config.use_secure_urls,
         # Currently implemented just AWS version
-        'S3' in ResourceCloudStorage.driver_name.fget(None)
+        'S3' in config.driver_name
     ])
