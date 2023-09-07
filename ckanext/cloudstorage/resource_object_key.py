@@ -172,11 +172,16 @@ def _parse_from_path_v0_v1(cls, path: str, key: str) -> ResourceObjectKey:
     )
 
 def _try_parse_streaming_datetime(name) -> Optional[datetime]:
-    # example name: PUT-S3-Qj0zi-3-2023-06-26-18-42-52-3d8d51f5-0fc4-3a21-8d2e-ff614b8e9a30
-    # extract the datetime from the name, for the example this results in
-    # ingestion_datetime = ['2023', '06', '26', '18', '42', '52']
+    """Returns the datetime encoded within the object name for streamed data."""
+    # streamed objects name follows the pattern:
+    #   DeliveryStreamName-DeliveryStreamVersion-YYYY-MM-dd-HH-MM-SS-RandomString
+    # Since the stream name may contain dashes (-) itself, we're relying on the random
+    # string always having 5 parts and parsing from the end.
+    # example names:
+    #   - S301-1-2023-09-07-10-00-39-85dc0d38-176c-369f-b4f2-d8ecb6d95dfe
+    #   - PUT-S3-Qj0zi-3-2023-06-26-18-42-52-3d8d51f5-0fc4-3a21-8d2e-ff614b8e9a30
     try:
-        ingestion_datetime = name.split('-', maxsplit=4)[-1].split('-', maxsplit=6)[:-1]
+        ingestion_datetime = name.rsplit('-', 5)[0].rsplit('-', 6)[1:]
         return datetime(*map(int, ingestion_datetime))
     except:
         return None
