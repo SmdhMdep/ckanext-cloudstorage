@@ -5,7 +5,7 @@ import json
 
 import boto3
 
-from ..resource_object_key import ResourceObjectKey
+from ..resource_object_key import ResourceObjectKey, ResourceObjectKeyType
 
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ class S3EventMessage:
             self.time = datetime.fromisoformat(event_time)
 
     @classmethod
-    def _from_sqs_message(cls, bucket_name: str, message: SQSMessage):
+    def from_sqs_message(cls, bucket_name: str, message: SQSMessage):
         body = json.loads(message.body)
         if body.get("Event") == "s3:TestEvent":
             logger.debug("test event message")
@@ -85,7 +85,7 @@ class S3EventMessage:
         return self._record["eventName"].startswith(self.OBJECT_REMOVED_EVENT_NAME)
 
     def can_apply_to(self, resource: Optional[dict]):
-        if self.resource_key.ingestion_datetime is not None:
+        if self.resource_key.type == ResourceObjectKeyType.STREAMING:
             last_modified_iso = (resource or {}).get("last_modified")
             last_modified = (
                 datetime.fromisoformat(last_modified_iso)
@@ -125,27 +125,27 @@ class S3EventMessage:
 
 
 def _poll_queue(queue_region: str, queue_url: str, driver_options) -> Iterator[SQSMessage]:
-    sqs = boto3.resource(
+    queue = boto3.resource(
         "sqs",
         region_name=queue_region,
         aws_access_key_id=driver_options.get('key'),
         aws_secret_access_key=driver_options.get('secret'),
-    )
-    queue = sqs.Queue(queue_url)
+    ).Queue(queue_url)
+
     while True:
-        yield queue.receive_messages(MaxNumberOfMessages=1)
-        break
+        messages = queue.receive_messages()
+        if not messages:
+            break
+        yield from messages
 
 def receive_s3_events(bucket_name: str, queue_region: str, queue_url: str, driver_options: dict) -> Iterator[S3EventMessage]:
-    for messages_batch in _poll_queue(queue_region, queue_url, driver_options):
-        for message in messages_batch:
-            logger.info("received message from sqs: %s", message)
-            for event in S3EventMessage._from_sqs_message(bucket_name, message):
-                if event is None:
-                    message.delete()
-                else:
-                    yield event
-
+    for message in _poll_queue(queue_region, queue_url, driver_options):
+        logger.info("received message from sqs: %s", message)
+        for event in S3EventMessage.from_sqs_message(bucket_name, message):
+            if event is None:
+                message.delete()
+            else:
+                yield event
 
 # Fakes
 
@@ -157,4 +157,4 @@ def fake_receive_s3_events():
 
     from .fake_s3_event_messages import FAKE_MESSAGES
 
-    yield from S3EventMessage._from_sqs_message('fake_bucket', FakeSQSMessage(body=FAKE_MESSAGES))
+    yield from S3EventMessage.from_sqs_message('fake_bucket', FakeSQSMessage(body=FAKE_MESSAGES))
