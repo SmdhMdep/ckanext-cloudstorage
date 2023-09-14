@@ -2,8 +2,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 import logging
-from typing import Optional
+from typing import Optional, Type
 from abc import abstractclassmethod, ABC
+
+from .utils import convert_global_package_name_to_local, convert_local_package_name_to_global
 
 
 logger = logging.getLogger(__name__)
@@ -82,7 +84,7 @@ class ResourceObjectKey(ABC):
 
 class _ResourceObjectKeyV0(ResourceObjectKey):
     """
-    Version 1 of the resource object key format.
+    Version 0 of the resource object key format.
 
     Upload resource format:
       <org_name> / <package_name> / <resource_name = resource_filename>
@@ -99,10 +101,7 @@ class _ResourceObjectKeyV0(ResourceObjectKey):
 
     @classmethod
     def try_create(cls, package, resource):
-        organization_name = package['organization']['name']
-        package_name = package['name']
-        name = resource.get('name')
-        return cls.try_parse(f'{organization_name}/{package_name}/{name}')
+        return _create_from_resource_v0_v1(cls, None, package, resource)
 
 
 class _ResourceObjectKeyV1(ResourceObjectKey):
@@ -133,15 +132,12 @@ class _ResourceObjectKeyV1(ResourceObjectKey):
 
     @classmethod
     def try_create(cls, package: dict, resource: dict):
-        org_name = package['organization']['name']
-        pkg_name = package['name']
-        name = resource.get('name')
-        return cls.try_parse(f'{cls.version}/{org_name}/{pkg_name}/{name}')
+        return _create_from_resource_v0_v1(cls, str(cls.version), package, resource)
 
 
-def _parse_from_path_v0_v1(cls, path: str, key: str) -> ResourceObjectKey:
+def _parse_from_path_v0_v1(cls: Type[ResourceObjectKey], path: str, key: str) -> ResourceObjectKey:
     try:
-        organization_name, package_name, *resource_path = path.split("/")
+        organization_name, local_package_name, *resource_path = path.split("/")
         if not resource_path:
             raise ValueError("key does not match the expected schema")
     except ValueError:
@@ -149,6 +145,7 @@ def _parse_from_path_v0_v1(cls, path: str, key: str) -> ResourceObjectKey:
 
     key_type = ResourceObjectKeyType.STREAMING if len(resource_path) > 1 else ResourceObjectKeyType.UPLOAD
 
+    package_name = convert_local_package_name_to_global(organization_name, local_package_name)
     name = resource_path[0]
     filename = (
         name if key_type == ResourceObjectKeyType.UPLOAD
@@ -169,6 +166,23 @@ def _parse_from_path_v0_v1(cls, path: str, key: str) -> ResourceObjectKey:
         type=key_type,
         filename=filename,
         ingestion_datetime=ingestion_datetime,
+    )
+
+def _create_from_resource_v0_v1(cls: Type[ResourceObjectKey], prefix: Optional[str], package: dict, resource: dict):
+    organization_name = package['organization']['name']
+    local_package_name = convert_global_package_name_to_local(package['name'])
+    name = resource.get('name')
+    path = f'{organization_name}/{local_package_name}/{name}'
+
+    return cls(
+        raw=f'{prefix}/{path}' if prefix else path,
+        version=cls.version,
+        organization_name=organization_name,
+        package_name=package['name'],
+        name=name,
+        type=ResourceObjectKeyType.UPLOAD,
+        filename=name,
+        ingestion_datetime=None,
     )
 
 def _try_parse_streaming_datetime(name) -> Optional[datetime]:

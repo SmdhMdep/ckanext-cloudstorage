@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 
 import ckan.model as model
@@ -6,6 +7,7 @@ from ckan.plugins import toolkit
 
 from ..config import config
 from ..distributed_lock import distributed_lock
+from ..utils import convert_global_package_name_to_local
 from .s3_event_message import S3EventMessage, receive_s3_events, fake_receive_s3_events
 
 
@@ -92,6 +94,10 @@ def _apply_event(
 ):
     updated_resource = _updated_resource(event, package, resource)
     logger.debug("updated resource: %s", updated_resource)
+
+    if package is not None and package["owner_org"] != organization["id"]:
+        raise ValueError("package does not belong to the same organization.")
+
     if event.is_created_event():
         if package is None:
             logger.debug("creating new package %s under %s", event.resource_key.package_name, organization["id"])
@@ -117,10 +123,16 @@ def _apply_event(
 def _new_package(name: str, organization: dict, resource: Optional[dict]) -> dict:
     return dict(
         name=name,
+        title=_format_package_title(name),
         owner_org=organization["id"],
         private=True,
         resources=[resource] if resource is not None else [],
     )
+
+def _format_package_title(name: str):
+    local_name = convert_global_package_name_to_local(name)
+    readable_name = re.sub(r"[^a-zA-Z0-9]+", " ", local_name)
+    return readable_name.strip().title()
 
 def _updated_resource(
     event: S3EventMessage,

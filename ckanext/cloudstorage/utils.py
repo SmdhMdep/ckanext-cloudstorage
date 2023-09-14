@@ -178,3 +178,11 @@ def resource_download(id, resource_id, filename=None):
         return resp
     else:
         return h.redirect_to(uploaded_url)
+
+def convert_global_package_name_to_local(name: str):
+    converter = tk.h.get(convert_global_package_name_to_local.__name__, None)
+    return converter(name) if converter else name
+
+def convert_local_package_name_to_global(org_name: str, name: str):
+    converter = tk.h.get(convert_local_package_name_to_global.__name__, None)
+    return converter(org_name, name) if converter else name
