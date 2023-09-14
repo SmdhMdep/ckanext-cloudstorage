@@ -15,12 +15,13 @@ from ckan.lib import munge
 from libcloud.storage.types import Provider, ObjectDoesNotExistError
 from libcloud.storage.providers import get_driver
 
-from .config import config, Config
+from .config import config
+
+from werkzeug.datastructures import FileStorage as FlaskFileStorage
+
 
 c = toolkit.c
 
-
-from werkzeug.datastructures import FileStorage as FlaskFileStorage
 ALLOWED_UPLOAD_TYPES = (cgi.FieldStorage, FlaskFileStorage)
 
 
@@ -217,11 +218,14 @@ class ResourceCloudStorage(CloudStorage):
             if self.can_use_advanced_azure:
                 return self._upload_using_azure(storage_path)
             else:
-                return self._upload_with_libcloud(storage_path)
+                return self._upload_using_libcloud(storage_path)
         elif self._clear and self.old_filename and not self.leave_files:
             # This is only set when a previously-uploaded file is replaced
             # by a link. We want to delete the previously-uploaded file.
-            return self._delete(storage_path, id, max_size)
+            if self.can_use_advanced_aws:
+                return self._delete_using_aws(storage_path, id, max_size)
+            else:
+                return self._delete_using_libcloud(storage_path, id, max_size)
 
     def get_url_from_filename(self, rid, filename, content_type=None):
         """
@@ -275,7 +279,7 @@ class ResourceCloudStorage(CloudStorage):
             content_settings=content_settings
         )
 
-    def _upload_with_libcloud(self, storage_path: str):
+    def _upload_using_libcloud(self, storage_path: str):
         # If it's temporary file, we'd better convert it
         # into FileIO. Otherwise libcloud will iterate
         # over lines, not over chunks and it will really
@@ -292,21 +296,38 @@ class ResourceCloudStorage(CloudStorage):
         else:
             file_upload_iter = iter(self.file_upload)
 
-        self.container.upload_object_via_stream(iterator=file_upload_iter,
-                                                object_name=storage_path)
+        extra = None
+        if self.guess_mimetype:
+            content_type, _ = mimetypes.guess_type(self.filename)
+            extra = {'content_type': content_type} if content_type else None
 
-    def _delete(self, storage_path: str, id: str, max_size: int):
+        self.container.upload_object_via_stream(
+            iterator=file_upload_iter,
+            object_name=storage_path,
+            extra=extra,
+        )
+
+    def _delete_using_aws(self, storage_path: str, id: str, max_size: int):
+        import boto3
+        client = boto3.client(
+            's3',
+            aws_access_key_id=config.aws_access_key_id,
+            aws_secret_access_key=config.aws_secret_access_key,
+            region_name=config.aws_bucket_region,
+        )
+        client.delete_object(Bucket=self.container_name, Key=storage_path)
+
+    def _delete_using_libcloud(self, storage_path: str, id: str, max_size: int):
         try:
-            self._authenticate_with_aws()
             cloud_object = self.container.get_object(storage_path)
             self.container.delete_object(cloud_object)
         except ObjectDoesNotExistError:
-            # It's possible for the object to have already been deleted, or
-            # for it to not yet exist in a committed state due to an
-            # outstanding lease.
             try:
                 self._fallback_uploader.upload(id, max_size)
             except:
+                # It's possible for the object to have already been deleted, or
+                # for it to not yet exist in a committed state due to an
+                # outstanding lease.
                 return
 
     def _get_url_from_filename_using_azure(self, path: str):
@@ -333,7 +354,7 @@ class ResourceCloudStorage(CloudStorage):
         client = boto3.client(
             's3',
             aws_access_key_id=config.aws_access_key_id,
-            aws_secret_access_key=config.aws_access_key_id,
+            aws_secret_access_key=config.aws_secret_access_key,
             region_name=config.aws_bucket_region,
         )
         params = {'Bucket': self.container_name, 'Key': path}

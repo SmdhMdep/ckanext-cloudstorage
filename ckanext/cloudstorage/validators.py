@@ -12,7 +12,6 @@ def iter_other_resource_name_keys(skip_key, data):
     data_keys = itertools.takewhile(lambda k: k in data, keys_generator)
     return (key for key in data_keys if key != skip_key)
 
-
 def valid_resource_name(key, data, errors, context):
     """Validate resource name to be unique and a valid filename."""
     current_name = data[key]

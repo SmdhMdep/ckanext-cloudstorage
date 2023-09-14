@@ -3,6 +3,9 @@
 import logging
 import datetime
 
+import mimetypes
+from werkzeug.datastructures import FileStorage as FlaskFileStorage
+
 from ckan.plugins.toolkit import config
 from ckan.plugins import plugin_loaded
 from sqlalchemy.orm.exc import NoResultFound
@@ -12,7 +15,8 @@ import ckan.plugins.toolkit as toolkit
 
 from ckanext.cloudstorage.storage import ResourceCloudStorage
 from ckanext.cloudstorage.model import MultipartUpload, MultipartPart
-from werkzeug.datastructures import FileStorage as FlaskFileStorage
+from ckanext.cloudstorage.config import config
+
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +84,12 @@ def check_multipart(context, data_dict):
         MultipartPart.upload == upload).count()
     return {'upload': upload_dict}
 
+def _guess_mimetype(*names):
+    for name in names:
+        mimetype = mimetypes.guess_type(name)[0]
+        if mimetype is not None:
+            return mimetype
+    return None
 
 def initiate_multipart(context, data_dict):
     """Initiate new Multipart Upload.
@@ -118,10 +128,14 @@ def initiate_multipart(context, data_dict):
     for old_upload in model.Session.query(MultipartUpload).filter_by(resource_id=id):
         _delete_multipart(old_upload, uploader)
 
+    content_type = _guess_mimetype(res_name, name) if config.guess_mimetype else None
+    headers = {'Content-Type': content_type} if content_type else None
+
     upload_object = MultipartUpload(
         uploader.driver._initiate_multipart(
             container=uploader.container,
-            object_name=res_name
+            object_name=res_name,
+            headers=headers,
         ),
         id,
         res_name,

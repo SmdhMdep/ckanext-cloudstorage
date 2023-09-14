@@ -82,7 +82,7 @@ class Config:
         `True` if ckanext-cloudstorage is configured to guess mime types,
         `False` otherwise.
         """
-        return toolkit.asbool(toolkit.config.get('ckanext.cloudstorage.guess_mimetype', False))
+        return toolkit.asbool(toolkit.config.get('ckanext.cloudstorage.guess_mimetype', True))
 
 
 config = Config()

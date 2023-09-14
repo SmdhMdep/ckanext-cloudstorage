@@ -133,8 +133,7 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
         return True
 
     def _write_package_schema(self, schema):
-        validator = plugins.toolkit.get_validator(valid_resource_name.__name__)
-        schema['resources']['name'].append(validator)
+        schema['resources']['name'].append(valid_resource_name)
         return schema
 
     def create_package_schema(self):
