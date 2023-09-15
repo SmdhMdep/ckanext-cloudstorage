@@ -37,6 +37,7 @@ def _get_object_url(uploader, name):
 
 
 def _delete_multipart(upload, uploader):
+    log.info("[=] deleting multipart upload %s: %s", upload, upload.name)
     resp = uploader.driver.connection.request(
         _get_object_url(uploader, upload.name) + '?uploadId=' + upload.id,
         method='DELETE'
@@ -128,7 +129,7 @@ def initiate_multipart(context, data_dict):
     for old_upload in model.Session.query(MultipartUpload).filter_by(resource_id=id):
         _delete_multipart(old_upload, uploader)
 
-    content_type = _guess_mimetype(res_name, name) if config.guess_mimetype else None
+    content_type = _guess_mimetype(name, res_name) if config.guess_mimetype else None
     headers = {'Content-Type': content_type} if content_type else None
 
     upload_object = MultipartUpload(
@@ -210,12 +211,9 @@ def finish_multipart(context, data_dict):
     ]
     uploader = ResourceCloudStorage({})
 
-    try:
-        obj = uploader.container.get_object(upload.name)
-        obj.delete()
-    except Exception:
-        pass
-
+    # FIXME: This can succeed without the object actually being saved to S3 due
+    # to a concurrent update or delete. See S3 documentation about multipart upload
+    # and concurrency.
     uploader.driver._commit_multipart(
         container=uploader.container,
         object_name=upload.name,
