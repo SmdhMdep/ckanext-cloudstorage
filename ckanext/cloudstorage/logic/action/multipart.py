@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import datetime
+from urllib.parse import quote as url_quote
 
 import mimetypes
 from werkzeug.datastructures import FileStorage as FlaskFileStorage
@@ -33,7 +34,8 @@ def _get_max_multipart_lifetime():
 
 
 def _get_object_url(uploader, name):
-    return '/' + uploader.container_name + '/' + name
+    path = '/' + uploader.container_name + '/' + name
+    return url_quote(path, safe="/~")
 
 
 def _delete_multipart(upload, uploader):
