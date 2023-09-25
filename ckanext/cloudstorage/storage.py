@@ -179,12 +179,7 @@ class ResourceCloudStorage(CloudStorage):
             # Apparently, this is a created-but-not-commited resource whose
             # file upload has been canceled. We're copying the behaviour of
             # ckaenxt-s3filestore here.
-            old_resource = model.Session.query(
-                model.Resource
-            ).get(
-                resource['id']
-            )
-
+            old_resource = model.Session.query(model.Resource).get(resource['id'])
             self.old_filename = old_resource.url
             resource['url_type'] = ''
 

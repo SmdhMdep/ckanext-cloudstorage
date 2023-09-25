@@ -94,19 +94,23 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
 
     # IResourceController
 
+    def _get_storage_path(self, context, resource):
+        context = dict(context, ignore_auth=True)
+        package = plugins.toolkit.get_action('package_show')(context, {
+            'id': resource['package_id']
+        })
+        return ResourceObjectKey.from_resource(package, resource).raw
+
     def before_create(self, context, resource):
         if resource.get('url_type') == 'upload' and resource.get(STORAGE_PATH_FIELD_NAME) is None:
-            context = dict(context, ignore_auth=True)
-            package = plugins.toolkit.get_action('package_show')(context, {
-                'id': resource['package_id']
-            })
-            resource[STORAGE_PATH_FIELD_NAME] = (
-                ResourceObjectKey.from_resource(package, resource).raw
-            )
+            resource[STORAGE_PATH_FIELD_NAME] = self._get_storage_path(context, resource)
 
     def before_update(self, context, current, resource):
         if STORAGE_PATH_FIELD_NAME not in resource and STORAGE_PATH_FIELD_NAME in current:
             resource[STORAGE_PATH_FIELD_NAME] = current[STORAGE_PATH_FIELD_NAME]
+        elif resource.get('upload') and resource.get('url_type') == 'upload' or resource.get('multipart_name'):
+            # new upload initiated, use the current resource as the updated resource object might be missing some fields
+            resource[STORAGE_PATH_FIELD_NAME] = self._get_storage_path(context, current)
 
     def before_delete(self, context, id_dict, resources):
         # let's get all info about our resource. It somewhere in resources

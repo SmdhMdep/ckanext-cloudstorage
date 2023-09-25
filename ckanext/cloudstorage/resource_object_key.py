@@ -171,7 +171,7 @@ def _parse_from_path_v0_v1(cls: Type[ResourceObjectKey], path: str, key: str) ->
 def _create_from_resource_v0_v1(cls: Type[ResourceObjectKey], prefix: Optional[str], package: dict, resource: dict):
     organization_name = package['organization']['name']
     local_package_name = convert_global_package_name_to_local(package['name'])
-    name = resource.get('name')
+    name = resource['name']
     path = f'{organization_name}/{local_package_name}/{name}'
 
     return cls(
