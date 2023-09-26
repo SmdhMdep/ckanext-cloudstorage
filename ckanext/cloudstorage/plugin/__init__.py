@@ -33,13 +33,15 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
 
     def update_config(self, config):
         plugins.toolkit.add_template_directory(config, '../templates')
+        plugins.toolkit.add_public_directory(config, '../public')
         plugins.toolkit.add_resource('../fanstatic/scripts', 'cloudstorage-js')
 
     # ITemplateHelpers
 
     def get_helpers(self):
         return dict(
-            cloudstorage_use_secure_urls=helpers.use_secure_urls
+            cloudstorage_use_secure_urls=helpers.use_secure_urls,
+            is_stream_resource=helpers.is_stream_resource,
         )
 
     def configure(self, config):

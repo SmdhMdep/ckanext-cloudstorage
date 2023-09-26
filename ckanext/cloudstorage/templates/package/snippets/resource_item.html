@@ -1,0 +1,25 @@
+{% ckan_extends %}
+
+{% block resource_item_title %}
+<a class="heading" href="{{ url }}" title="{{ res.name or res.description }}">
+    {{ h.resource_display_name(res) | truncate(50) }}
+    {% if not h.is_stream_resource(res) %}
+        <span class="format-label" property="dc:format" data-format="{{ res.format.lower() or 'data' }}">
+            {{ h.get_translated(res, 'format') }}
+        </span>
+    {% else %}
+        <span
+            class="format-label"
+            property="dc:format"
+            style="
+                background-image: url('/images/streaming_resource_icon.png');
+                background-position: 0 0;
+                background-size: contain;
+            "
+        >
+            {{ h.get_translated(res, 'format') }}
+        </span>
+    {% endif %}
+    {{ h.popular('views', res.tracking_summary.total, min=10) if res.tracking_summary }}
+</a>
+{% endblock %}

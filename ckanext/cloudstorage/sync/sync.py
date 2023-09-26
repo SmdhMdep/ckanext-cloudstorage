@@ -7,7 +7,9 @@ from ckan.plugins import toolkit
 
 from ..config import config
 from ..distributed_lock import distributed_lock
+from ..resource_object_key import ResourceObjectKeyType
 from ..utils import convert_global_package_name_to_local
+from ..helpers import STREAM_RESOURCE_TYPE
 from .s3_event_message import S3EventMessage, receive_s3_events, fake_receive_s3_events
 
 
@@ -141,6 +143,12 @@ def _updated_resource(
 ) -> dict:
     package, resource = package or {}, resource or {}
     if event.is_created_event():
+        extra = (
+            dict(resource_type=STREAM_RESOURCE_TYPE)
+            if event.resource_key.type == ResourceObjectKeyType.STREAMING
+            else dict()
+        )
+
         return dict(
             resource,
             package_id=package.get("id"),
@@ -151,6 +159,7 @@ def _updated_resource(
             aws_s3_sequencer=event.object_sequencer,
             cloud_storage_key=event.resource_key.raw,
             last_modified=event.time,
+            **extra,
         )
     else:
         updated_resource = dict(
