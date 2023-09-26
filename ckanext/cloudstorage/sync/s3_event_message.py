@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 from typing import Iterator, Tuple, Any, Optional
+from urllib.parse import unquote_plus as url_unquote_plus
 import json
 
 import boto3
@@ -23,7 +24,8 @@ class S3EventMessage:
     def __init__(self, message: SQSMessage, record: dict):
         self._record = record
         self._message = message
-        self._object_key_parts = tuple(record["s3"]["object"]["key"].split("/"))
+        self._object_key = url_unquote_plus(record["s3"]["object"]["key"])
+        self._object_key_parts = tuple(self._object_key.split("/"))
         self.resource_key = ResourceObjectKey.from_raw_key(self.object_key)
         if self.resource_key.ingestion_datetime is not None:
             self.time = self.resource_key.ingestion_datetime
@@ -38,7 +40,7 @@ class S3EventMessage:
     def from_sqs_message(cls, bucket_name: str, message: SQSMessage):
         body = json.loads(message.body)
         if body.get("Event") == "s3:TestEvent":
-            logger.debug("test event message")
+            logger.debug("received an S3 test event message")
             return None
 
         for record in body["Records"]:
@@ -50,15 +52,17 @@ class S3EventMessage:
 
                 event_source, event_name = record["eventSource"], record["eventName"]
                 event_bucket_name = record["s3"]["bucket"]["name"]
-                event_object_key = record["s3"]["object"]["key"]
+
                 if (
                     event_source == "aws:s3"
                     and event_name.startswith(cls.EVENT_NAMES)
                     and event_bucket_name == bucket_name
                 ):
+                    event_object_key = record["s3"]["object"]["key"]
                     logger.debug("sync event message for key %s", event_object_key)
-                    yield None if event_object_key.endswith('/') else S3EventMessage(message, record)
-            except (KeyError, TypeError):
+                    is_folder_object = event_object_key.endswith('/')
+                    yield None if is_folder_object else S3EventMessage(message, record)
+            except (ValueError, KeyError, TypeError):
                 logger.exception("unexpected schema")
 
     def mark_received(self):
@@ -99,7 +103,7 @@ class S3EventMessage:
 
     @property
     def object_key(self) -> str:
-        return self._record["s3"]["object"]["key"]
+        return self._object_key
 
     @property
     def object_key_parts(self) -> Tuple[str]:
