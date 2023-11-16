@@ -1,0 +1,19 @@
+{% ckan_extends %}
+
+{% with version = h.ckan_version() %}
+{% set type = 'asset' if h.ckan_version().split('.')|map('int')|list >= [2, 9, 0] else 'resource' %}
+{% include 'cloudstorage/snippets/cloudstorage-js_' ~ type ~ '.html' %}
+{% endwith %}
+
+{% set res = resource %}
+{% block resource_actions_inner %}
+{% if h.can_generate_presigned_url(res) %}
+<li>
+  <button data-module="cloudstorage-presigned-url" data-module-resource_id="{{ res.id }}" disabled
+    class="btn btn-default">
+    <i class="fa fa-cog"></i> Generate presigned URL
+  </button>
+</li>
+{% endif %}
+{{ super() }}
+{% endblock %}

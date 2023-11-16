@@ -48,6 +48,7 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
             cloudstorage_use_secure_urls=helpers.use_secure_urls,
             is_stream_resource=helpers.is_stream_resource,
             get_package_cloud_storage_key=helpers.get_package_cloud_storage_key,
+            can_generate_presigned_url=helpers.can_generate_presigned_url,
         )
 
     def configure(self, config):

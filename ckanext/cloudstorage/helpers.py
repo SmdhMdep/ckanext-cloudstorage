@@ -3,6 +3,7 @@
 import os
 
 from ckanext.cloudstorage.config import config
+from ckanext.cloudstorage.storage import STORAGE_PATH_FIELD_NAME
 
 
 def use_secure_urls():
@@ -26,3 +27,7 @@ def get_package_cloud_storage_key(package: dict) -> str:
         package['organization']['name'],
         package['cloud_storage_key_segment'],
     )
+
+
+def can_generate_presigned_url(resource):
+    return resource.get(STORAGE_PATH_FIELD_NAME) is not None
