@@ -106,11 +106,11 @@ class S3EventMessage:
         return self._object_key
 
     @property
-    def object_key_parts(self) -> Tuple[str]:
+    def object_key_parts(self) -> Tuple[str, ...]:
         return self._object_key_parts
 
     @property
-    def object_key_prefixes(self) -> Tuple[str]:
+    def object_key_prefixes(self) -> Tuple[str, ...]:
         return self._object_key_parts[:-1]
 
     @property

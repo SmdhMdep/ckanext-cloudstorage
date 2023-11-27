@@ -46,7 +46,7 @@ def _events():
     )
 
 def _do_sync(context, event: S3EventMessage):
-    organization = _get_organization(context, event.resource_key.organization_name)
+    organization = _get_organization(dict(context), event.resource_key.organization_name)
     admin = _get_organization_admin(organization)
     event_context = dict(context, user=admin.get("id"))
 
@@ -59,7 +59,7 @@ def _do_sync(context, event: S3EventMessage):
 
     if event.can_apply_to(current_resource):
         logger.debug("handling key %s for %s event", event.resource_key.raw, event.type)
-        _apply_event(event_context, event, organization, package, current_resource)
+        _apply_event(dict(event_context), event, organization, package, current_resource)
     else:
         logger.debug("ignoring key %s for %s event", event.resource_key.raw, event.type)
 
@@ -75,7 +75,7 @@ def _get_organization_admin(org: dict) -> dict:
             return user
     raise ValueError(f"missing organization admin for {org['name']}")
 
-def _find_package(context, package_name: str) -> dict:
+def _find_package(context, package_name: str) -> Optional[dict]:
     try:
         return toolkit.get_action("package_show")(context, dict(id=package_name))
     except toolkit.ObjectNotFound:
