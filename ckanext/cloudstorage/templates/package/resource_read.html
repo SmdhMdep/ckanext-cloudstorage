@@ -9,8 +9,8 @@
 {% block resource_actions_inner %}
 {% if h.can_generate_presigned_url(res) %}
 <li>
-  <button data-module="cloudstorage-presigned-url" data-module-resource_id="{{ res.id }}" disabled
-    class="btn btn-default">
+  <button disabled class="btn btn-default" data-module="cloudstorage-presigned-url"
+    data-module-resource_id="{{ res.id }}" data-module-expires_in="86400">
     <i class="fa fa-cog"></i> Generate presigned URL
   </button>
 </li>

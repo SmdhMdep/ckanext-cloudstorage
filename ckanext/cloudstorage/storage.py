@@ -222,7 +222,7 @@ class ResourceCloudStorage(CloudStorage):
             else:
                 return self._delete_using_libcloud(storage_path, id, max_size)
 
-    def get_url_from_filename(self, rid, filename, content_type=None):
+    def get_url_from_filename(self, rid, filename, content_type=None, expires_in=None):
         """
         Retrieve a publicly accessible URL for the given resource_id
         and filename.
@@ -235,6 +235,8 @@ class ResourceCloudStorage(CloudStorage):
         :param rid: The resource ID.
         :param filename: The resource filename.
         :param content_type: Optionally a Content-Type header.
+        :param expires_in: Optional number of seconds until the pre-signed url expires
+                        only used with AWS.
 
         :returns: Externally accessible URL or None.
         """
@@ -247,7 +249,8 @@ class ResourceCloudStorage(CloudStorage):
         elif self.can_use_advanced_azure and self.use_secure_urls:
             return self._get_url_from_filename_using_azure(path)
         elif self.can_use_advanced_aws and self.use_secure_urls:
-            return self._get_url_from_filename_using_aws(content_type, path)
+            expiry = expires_in or 3600
+            return self._get_url_from_filename_using_aws(content_type, path, expiry)
         else:
             return self._get_url_from_filename_using_libcloud(path)
 
@@ -279,7 +282,7 @@ class ResourceCloudStorage(CloudStorage):
         # into FileIO. Otherwise libcloud will iterate
         # over lines, not over chunks and it will really
         # slow down the process for files that consist of
-        # millions of short linew
+        # millions of short line
         if isinstance(self.file_upload, SpooledTemporaryFile):
             self.file_upload.rollover()
             try:
@@ -344,7 +347,7 @@ class ResourceCloudStorage(CloudStorage):
             )
         )
 
-    def _get_url_from_filename_using_aws(self, content_type: str, path: str):
+    def _get_url_from_filename_using_aws(self, content_type: str, path: str, expires_in: int):
         import boto3
         client = boto3.client(
             's3',
@@ -356,7 +359,11 @@ class ResourceCloudStorage(CloudStorage):
         if content_type:
             params['ResponseContentType'] = content_type
 
-        return client.generate_presigned_url(ClientMethod='get_object', Params=params)
+        return client.generate_presigned_url(
+            ClientMethod='get_object',
+            Params=params,
+            ExpiresIn=expires_in,
+        )
 
     def _get_url_from_filename_using_libcloud(self, path: str):
         try:
