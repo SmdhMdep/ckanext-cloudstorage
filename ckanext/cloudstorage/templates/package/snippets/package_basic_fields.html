@@ -1,0 +1,6 @@
+{% ckan_extends %}
+
+{% block package_basic_fields_custom %}
+{{ super() }}
+{{ form.hidden(name='cloud_storage_key_segment', value=data.cloud_storage_key_segment) }}
+{% endblock %}
