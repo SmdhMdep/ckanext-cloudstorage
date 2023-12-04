@@ -14,11 +14,7 @@ else:
 from ..resource_object_key import ResourceObjectKey
 from ..storage import STORAGE_PATH_FIELD_NAME
 from .. import model
-from ..validators import (
-    valid_resource_name,
-    default_cloud_storage_key_package_segment,
-    no_update_to_package_cloud_storage_key_segment,
-)
+from ..validators import valid_resource_name
 
 
 class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.DefaultDatasetForm):
@@ -46,7 +42,6 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
         return dict(
             cloudstorage_use_secure_urls=helpers.use_secure_urls,
             is_stream_resource=helpers.is_stream_resource,
-            get_package_cloud_storage_key=helpers.get_package_cloud_storage_key,
         )
 
     def configure(self, config):
@@ -143,34 +138,12 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
     def is_fallback(self):
         return True
 
-    def show_package_schema(self):
-        schema = super().show_package_schema()
-        schema.update({
-            'cloud_storage_key_segment': [
-                plugins.toolkit.get_converter('convert_from_extras'),
-                default_cloud_storage_key_package_segment,
-            ],
-        })
+    def _write_package_schema(self, schema):
+        schema['resources']['name'].append(valid_resource_name)
+        return schema
 
     def create_package_schema(self):
-        schema = super().create_package_schema()
-        schema['resources']['name'].append(valid_resource_name)
-        schema.update({
-            'cloud_storage_key_segment': [
-                plugins.toolkit.get_validator('ignore_missing'),
-                plugins.toolkit.get_converter('convert_to_extras'),
-            ]
-        })
-        return schema
+        return self._write_package_schema(super().create_package_schema())
 
     def update_package_schema(self):
-        schema = super().update_package_schema()
-        schema['resources']['name'].append(valid_resource_name)
-        schema.update({
-            'cloud_storage_key_segment': [
-                plugins.toolkit.get_converter('ignore_missing'),
-                no_update_to_package_cloud_storage_key_segment,
-                plugins.toolkit.get_converter('convert_to_extras'),
-            ]
-        })
-        return schema
+        return self._write_package_schema(super().update_package_schema())
