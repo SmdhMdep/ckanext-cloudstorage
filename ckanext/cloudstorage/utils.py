@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+import re
 import os.path
 
 import six
@@ -186,3 +186,10 @@ def convert_global_package_name_to_local(name: str):
 def convert_local_package_name_to_global(org_name: str, name: str):
     converter = tk.h.get(convert_local_package_name_to_global.__name__, None)
     return converter(org_name, name) if converter else name
+
+
+_camel_to_kebab_case_pattern = re.compile(r'(?<!^)(?=[A-Z])')
+
+
+def canonicalize_package_name(name: str) -> str:
+    return _camel_to_kebab_case_pattern.sub('-', name).lower()

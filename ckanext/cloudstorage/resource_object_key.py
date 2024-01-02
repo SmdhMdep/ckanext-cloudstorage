@@ -1,14 +1,12 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-import logging
 from typing import Optional, Type
-from abc import abstractclassmethod, ABC
+from abc import abstractmethod, ABC
 
-from .utils import convert_global_package_name_to_local, convert_local_package_name_to_global
+from .utils import convert_local_package_name_to_global, canonicalize_package_name
 
 
-logger = logging.getLogger(__name__)
 _FACTORIES = []
 
 
@@ -29,7 +27,10 @@ class ResourceObjectKey(ABC):
     """The id of the organization for this resource."""
 
     package_name: str
-    """The id of the package for this resource"""
+    """The id of the package for this resource."""
+
+    package_segment: str
+    """Actual key segment."""
 
     name: str
     """The name of the resource. For uploaded data, this matches the filename. For streamed data, 
@@ -69,11 +70,13 @@ class ResourceObjectKey(ABC):
                 return instance
         raise ValueError(f'Cannot create key for resource: {resource.get("id")}')
 
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def try_parse(cls, key: str) -> 'ResourceObjectKey':
         pass
 
-    @abstractclassmethod
+    @classmethod
+    @abstractmethod
     def try_create(cls, package: dict, resource: dict) -> 'ResourceObjectKey':
         pass
 
@@ -137,7 +140,7 @@ class _ResourceObjectKeyV1(ResourceObjectKey):
 
 def _parse_from_path_v0_v1(cls: Type[ResourceObjectKey], path: str, key: str) -> ResourceObjectKey:
     try:
-        organization_name, local_package_name, *resource_path = path.split("/")
+        organization_name, package_segment, *resource_path = path.split("/")
         if not resource_path:
             raise ValueError("key does not match the expected schema")
     except ValueError:
@@ -145,6 +148,7 @@ def _parse_from_path_v0_v1(cls: Type[ResourceObjectKey], path: str, key: str) ->
 
     key_type = ResourceObjectKeyType.STREAMING if len(resource_path) > 1 else ResourceObjectKeyType.UPLOAD
 
+    local_package_name = canonicalize_package_name(package_segment)
     package_name = convert_local_package_name_to_global(organization_name, local_package_name)
     name = resource_path[0]
     filename = (
@@ -162,6 +166,7 @@ def _parse_from_path_v0_v1(cls: Type[ResourceObjectKey], path: str, key: str) ->
         version=cls.version,
         organization_name=organization_name,
         package_name=package_name,
+        package_segment=package_segment,
         name=name,
         type=key_type,
         filename=filename,
@@ -170,15 +175,16 @@ def _parse_from_path_v0_v1(cls: Type[ResourceObjectKey], path: str, key: str) ->
 
 def _create_from_resource_v0_v1(cls: Type[ResourceObjectKey], prefix: Optional[str], package: dict, resource: dict):
     organization_name = package['organization']['name']
-    local_package_name = convert_global_package_name_to_local(package['name'])
+    package_segment = package['cloud_storage_key_segment']
     name = resource['name']
-    path = f'{organization_name}/{local_package_name}/{name}'
+    path = f'{organization_name}/{package_segment}/{name}'
 
     return cls(
         raw=f'{prefix}/{path}' if prefix else path,
         version=cls.version,
         organization_name=organization_name,
         package_name=package['name'],
+        package_segment=package_segment,
         name=name,
         type=ResourceObjectKeyType.UPLOAD,
         filename=name,
@@ -196,6 +202,6 @@ def _try_parse_streaming_datetime(name) -> Optional[datetime]:
     #   - PUT-S3-Qj0zi-3-2023-06-26-18-42-52-3d8d51f5-0fc4-3a21-8d2e-ff614b8e9a30
     try:
         ingestion_datetime = name.rsplit('-', 5)[0].rsplit('-', 6)[1:]
-        return datetime(*map(int, ingestion_datetime))
+        return datetime(*map(int, ingestion_datetime)) # type: ignore
     except:
         return None

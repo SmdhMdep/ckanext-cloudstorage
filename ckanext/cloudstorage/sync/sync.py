@@ -103,7 +103,7 @@ def _apply_event(
     if event.is_created_event():
         if package is None:
             logger.debug("creating new package %s under %s", event.resource_key.package_name, organization["id"])
-            package = _new_package(event.resource_key.package_name, organization, updated_resource)
+            package = _new_package(event.resource_key.package_name, event.resource_key.package_segment, organization, updated_resource)
             _call_action("package_create", context, package)
         elif resource is None:
             logger.debug("creating resource %s under %s", event.resource_key.name, package["name"])
@@ -122,13 +122,14 @@ def _apply_event(
 
     context["model"].repo.commit()
 
-def _new_package(name: str, organization: dict, resource: Optional[dict]) -> dict:
+def _new_package(package_name: str, package_segment: str, organization: dict, resource: Optional[dict]) -> dict:
     return dict(
-        name=name,
-        title=_format_package_title(name),
+        name=package_name,
+        title=_format_package_title(package_name),
         owner_org=organization["id"],
         private=True,
         resources=[resource] if resource is not None else [],
+        cloud_storage_key_segment=package_segment,
     )
 
 def _format_package_title(name: str):
