@@ -8,3 +8,4 @@ main:
   contents:
     - vendor/jquery-widget.js
     - cloudstorage-multipart-upload.js
+    - cloudstorage-presigned-url.js
