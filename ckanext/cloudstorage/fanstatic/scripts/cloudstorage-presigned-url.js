@@ -1,16 +1,16 @@
 "use strict";
 
-const GENERATE_HTML = `<i class="fa fa-cog"></i> Generate presigned URL`;
-const GENERATING_HTML = `<i class="fa fa-spinner fa-pulse"></i> Generating presigned URL`;
-const COPY_HTML = `<i class="fa fa-copy"></i> Copy presigned URL`;
-const COPIED_HTML = `<i class="fa fa-check" style="color: #10ad64;"></i> Copied presigned URL valid for `;
+const GENERATE_HTML = `<i class="fa fa-cog"></i> Create share link`;
+const GENERATING_HTML = `<i class="fa fa-spinner fa-pulse"></i> Creating share link`;
+const COPY_HTML = `<i class="fa fa-copy"></i> Copy share link`;
+const COPIED_TEXT = 'Copied presigned URL valid for';
 
 const formatExpiry = expires_in => {
     const format = (amount, unit) => {
         if (amount < 1) return null;
         amount = Math.floor(amount);
         return `${amount} ${unit}${amount > 1 ? 's' : ''}`;
-    }
+    };
 
     return (
         format(expires_in / (24 * 60 * 60), 'day')
@@ -18,7 +18,7 @@ const formatExpiry = expires_in => {
         ?? format(expires_in / 60, 'minute')
         ?? format(expires_in, 'second')
     );
-}
+};
 
 ckan.module('cloudstorage-presigned-url', function ($, _) {
     /**
@@ -39,7 +39,7 @@ ckan.module('cloudstorage-presigned-url', function ($, _) {
             this.options.expires_in = Number(this.options.expires_in);
 
             this.el.popover({
-                content: this._(`Copied presigned URL valid for ${formatExpiry(this.options.expires_in)}`),
+                content: this._(`${COPIED_TEXT} ${formatExpiry(this.options.expires_in)}`),
                 animation: false,
                 placement: 'top',
                 trigger: 'manual',
