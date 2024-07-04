@@ -5,6 +5,7 @@ from ckanext.cloudstorage import storage
 from ckanext.cloudstorage import helpers
 import ckanext.cloudstorage.logic.action.presigned_url as presigned_url_action
 import ckanext.cloudstorage.logic.action.multipart as m_action
+import ckanext.cloudstorage.logic.action.get as get_actions
 import ckanext.cloudstorage.logic.auth.multipart as m_auth
 
 if plugins.toolkit.check_ckan_version(min_version='2.9.0'):
@@ -88,6 +89,7 @@ class CloudStoragePlugin(MixinPlugin, plugins.SingletonPlugin, plugins.toolkit.D
             'cloudstorage_check_multipart': m_action.check_multipart,
             'cloudstorage_clean_multipart': m_action.clean_multipart,
             'resource_create_presigned_url': presigned_url_action.create_presigned_url,
+            'cloudstorage_package_show': get_actions.cloudstorage_package_show,
         }
 
     # IAuthFunctions
