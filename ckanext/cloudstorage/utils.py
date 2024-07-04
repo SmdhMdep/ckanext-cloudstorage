@@ -192,4 +192,11 @@ _camel_to_kebab_case_pattern = re.compile(r'(?<!^)(?=[A-Z])')
 
 
 def canonicalize_package_name(name: str) -> str:
-    return _camel_to_kebab_case_pattern.sub('-', name).lower()
+    # This should have been a simple conversion from uppercase to lowercase
+    # as some packages were converted using camel to kebab case conversion this
+    # must be done first.
+    package_name = _camel_to_kebab_case_pattern.sub('-', name).lower()
+    if '--' in package_name:
+        package_name = name.lower()
+
+    return package_name
