@@ -69,10 +69,8 @@ class S3EventMessage:
         self._message.delete()
 
     def mark_invalid(self, message=None):
-        # move the message manually to the dead letter queue?
-        # after multiple retries the message will be delivered to the dead-letter queue.
-        # could also modify the attributes so that we can ignore it faster later?
-        pass
+        logger.warning("cannot process event for object %s. event will be deleted, cause: %s", self.object_key, message)
+        self._message.delete()
 
     def mark_error(self, error=None):
         # do nothing, after some retries the message will be delivered to the dead letter queue
@@ -137,7 +135,7 @@ def _poll_queue(queue_region: str, queue_url: str, driver_options) -> Iterator[S
     ).Queue(queue_url)
 
     while True:
-        messages = queue.receive_messages()
+        messages = queue.receive_messages(MaxNumberOfMessages=10)
         if not messages:
             break
         yield from messages

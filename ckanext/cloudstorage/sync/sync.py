@@ -20,7 +20,9 @@ def schedule_s3_sync_job():
     with distributed_lock('s3-sync-job'):
         jobs = toolkit.get_action("job_list")({"ignore_auth": True, "model": model}, {})
         sync_jobs = [job for job in jobs if job['title'] == sync_s3.__name__]
-        if not sync_jobs:
+        # don't overwhelm the work queue
+        if len(sync_jobs) < 10:
+            logger.info("enqueuing a new sync job with %i existing jobs", len(sync_jobs))
             toolkit.enqueue_job(sync_s3, title=sync_s3.__name__)
 
 def sync_s3():
